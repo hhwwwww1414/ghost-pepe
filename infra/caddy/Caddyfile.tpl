@@ -7,14 +7,22 @@
 	auto_https disable_redirects
 }
 
-${API_DOMAIN} {
-	reverse_proxy 127.0.0.1:8080
-}
-
-${ADMIN_DOMAIN} {
+https://${ADMIN_DOMAIN}:8443 {
 	# Admin SPA static build + API proxy.
 	handle /admin/* {
-		reverse_proxy 127.0.0.1:8080
+		reverse_proxy api:8080
+	}
+	handle /api/* {
+		reverse_proxy api:8080
+	}
+	handle /internal/* {
+		reverse_proxy api:8080
+	}
+	handle /subscription/* {
+		reverse_proxy api:8080
+	}
+	handle /health {
+		reverse_proxy api:8080
 	}
 	handle {
 		root * /var/www/admin
@@ -23,6 +31,20 @@ ${ADMIN_DOMAIN} {
 	}
 }
 
-${SUB_DOMAIN} {
-	reverse_proxy 127.0.0.1:8082
+https://${SUB_DOMAIN}:8443 {
+	handle /api/* {
+		reverse_proxy api:8080
+	}
+	handle /internal/* {
+		reverse_proxy api:8080
+	}
+	handle /subscription/* {
+		reverse_proxy api:8080
+	}
+	handle /health {
+		reverse_proxy api:8080
+	}
+	handle {
+		reverse_proxy sub-page:8082
+	}
 }

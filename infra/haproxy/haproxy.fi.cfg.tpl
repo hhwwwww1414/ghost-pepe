@@ -1,7 +1,7 @@
 # HAProxy L4 SNI router for FI (Variant A — docs 06 §5).
 # Public TCP 443 is split by SNI:
 #   api/admin/sub  -> Caddy on 127.0.0.1:8443 (HTTPS web)
-#   fi-vless       -> Xray VLESS Reality on 127.0.0.1:1443
+#   Reality SNI    -> Xray VLESS Reality on 127.0.0.1:1443
 # Hysteria2 uses UDP 443 separately (no conflict with TCP 443).
 #
 # Render with scripts/generate-configs (replaces ${...}).
@@ -22,8 +22,8 @@ frontend tls_in
     tcp-request inspect-delay 5s
     tcp-request content accept if { req_ssl_hello_type 1 }
 
-    # Route VLESS Reality by its SNI to Xray.
-    use_backend xray_vless if { req_ssl_sni -i ${FI_VLESS_DOMAIN} }
+    # Route VLESS Reality by its borrowed Reality SNI to Xray.
+    use_backend xray_vless if { req_ssl_sni -i ${FI_REALITY_SERVER_NAME} }
 
     # Everything else (api/admin/sub) goes to the web reverse proxy.
     default_backend web_caddy

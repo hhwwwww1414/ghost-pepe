@@ -79,6 +79,7 @@ export async function renderDeviceSubscription(
           port: profile.endpointPort,
           serverName: profile.endpointHost,
           obfsPassword: hysteriaObfs(ingressNodeCode),
+          insecure: true,
           label: profile.label,
         }),
       );
