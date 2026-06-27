@@ -1,0 +1,46 @@
+# Node inventory (docs 06 §22). Copy to nodes.local.yml and fill real values.
+# Adding a node = add an entry here, then:
+#   make add-node NODE_CODE=<code>
+#   make deploy-node NODE_CODE=<code>
+nodes:
+  - node_code: fi-control-01
+    country_code: FI
+    role: control_exit
+    public_ipv4: "CHANGE_ME"
+    ssh_host: "CHANGE_ME"
+    ssh_port: 22
+    ssh_user: "root"
+    is_control_plane: true
+    is_exit_node: true
+    is_whitelist_bridge: false
+    domains:
+      vless: "fi-vless.example.com"
+      hysteria: "fi-hy.example.com"
+
+  - node_code: de-exit-01
+    country_code: DE
+    role: exit
+    public_ipv4: "CHANGE_ME"
+    ssh_host: "CHANGE_ME"
+    ssh_port: 22
+    ssh_user: "root"
+    is_control_plane: false
+    is_exit_node: true
+    is_whitelist_bridge: false
+    domains:
+      vless: "de-vless.example.com"
+      hysteria: "de-hy.example.com"
+
+  - node_code: yc-bridge-01
+    country_code: RU
+    role: whitelist_bridge
+    public_ipv4: "CHANGE_ME"
+    ssh_host: "CHANGE_ME"
+    ssh_port: 22
+    ssh_user: "root"
+    is_control_plane: false
+    is_exit_node: false
+    is_whitelist_bridge: true
+    domains:
+      vless: "wl-vless.example.com"
+      hysteria: "wl-hy.example.com"

@@ -1,0 +1,60 @@
+# ───────────────────────────── SECRETS (never commit) ─────────────────────────────
+.env
+.env.*
+!.env.example
+*.secret
+*.private
+secrets/
+infra/secrets/*.env
+infra/secrets/*.local
+infra/secrets/secrets.local.md
+infra/nodes/nodes.local.yml
+
+# Real credentials handed over for this deployment — keep local only
+CONNECT.md
+
+# SSH keys / private keys / certs
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.pem
+*.key
+*.ppk
+ghost-pepe
+ghost-pepe.pub
+
+# DB dumps / backups
+*.sql.gz
+*.dump
+*.bak
+backups/
+
+# ───────────────────────────── Build / deps ─────────────────────────────
+node_modules/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+coverage/
+
+# Prisma generated client
+packages/db/node_modules/.prisma/
+**/.prisma/
+
+# Rendered configs (generated from templates)
+infra/.rendered/
+
+# Frontend build output
+apps/admin-web/dist/
+apps/sub-page/dist/
+
+# ───────────────────────────── Editor / OS ─────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+npm-debug.log*
+.pnpm-debug.log*

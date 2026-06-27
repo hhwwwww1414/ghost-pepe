@@ -1,0 +1,31 @@
+{
+  "name": "ghost-pepe-vpn",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ghost Pepe VPN — control-plane + exit/bridge infrastructure (VLESS+Reality, Hysteria2)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test --import tsx \"packages/*/test/*.test.ts\" \"apps/*/test/*.test.ts\"",
+    "dev:api": "npm -w @ghostpepe/api run dev",
+    "dev:bot": "npm -w @ghostpepe/bot run dev",
+    "dev:agent": "npm -w @ghostpepe/node-agent run dev",
+    "dev:sub": "npm -w @ghostpepe/sub-page run dev",
+    "dev:admin": "npm -w @ghostpepe/admin-web run dev",
+    "db:generate": "npm -w @ghostpepe/db run generate",
+    "db:migrate": "npm -w @ghostpepe/db run migrate",
+    "db:seed": "npm -w @ghostpepe/db run seed"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

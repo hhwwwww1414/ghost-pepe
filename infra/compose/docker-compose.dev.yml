@@ -1,0 +1,130 @@
+# Local dev stack (docs 06 §20). `make dev`.
+# Brings up: postgres, redis, api, telegram-bot (mock/idle), sub-page, admin-web,
+# and 3 mock node-agents (FI/DE/YC) that emit fake heartbeats + traffic.
+name: ghostpepe-dev
+
+x-app: &app
+  build:
+    context: ../..
+    dockerfile: infra/docker/Dockerfile
+  restart: unless-stopped
+  env_file:
+    - ../../.env.local
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ghostpepe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ghostpepe_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-ghostpepe}
+    ports: ['5432:5432']
+    volumes: ['pgdata:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-ghostpepe}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--requirepass', '${REDIS_PASSWORD:-ghostpepe_redis_dev}']
+    ports: ['6379:6379']
+
+  migrate:
+    <<: *app
+    restart: 'no'
+    command: sh -c "npx prisma db push --schema packages/db/prisma/schema.prisma --accept-data-loss && npx tsx packages/db/src/seed.ts"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ghostpepe}:${POSTGRES_PASSWORD:-ghostpepe_dev_password}@postgres:5432/${POSTGRES_DB:-ghostpepe}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: npx tsx watch apps/api/src/index.ts
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ghostpepe}:${POSTGRES_PASSWORD:-ghostpepe_dev_password}@postgres:5432/${POSTGRES_DB:-ghostpepe}?schema=public
+      REDIS_URL: redis://:${REDIS_PASSWORD:-ghostpepe_redis_dev}@redis:6379
+      API_PORT: '8080'
+    ports: ['8080:8080']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  bot:
+    <<: *app
+    command: npx tsx watch apps/bot/src/index.ts
+    environment:
+      API_BASE_URL: http://api:8080
+    depends_on:
+      api:
+        condition: service_started
+
+  sub-page:
+    <<: *app
+    command: npx tsx watch apps/sub-page/src/index.ts
+    environment:
+      # Browser hits the API on the host, so use localhost here.
+      API_BASE_URL: http://localhost:8080
+      SUB_PORT: '8082'
+    ports: ['8082:8082']
+    depends_on:
+      api:
+        condition: service_started
+
+  admin-web:
+    image: node:22-slim
+    working_dir: /app
+    command: sh -c "cd apps/admin-web && npm install --no-audit --no-fund && npm run dev"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080
+    volumes:
+      - ../..:/app
+      - /app/node_modules
+    ports: ['8083:8083']
+
+  agent-fi:
+    <<: *app
+    command: npx tsx watch apps/node-agent/src/index.ts
+    environment:
+      NODE_CODE: fi-control-01
+      CONTROL_PLANE_URL: http://api:8080
+      AGENT_MOCK: 'true'
+      HYSTERIA_AUTH_PORT: '18091'
+    depends_on:
+      api:
+        condition: service_started
+
+  agent-de:
+    <<: *app
+    command: npx tsx watch apps/node-agent/src/index.ts
+    environment:
+      NODE_CODE: de-exit-01
+      CONTROL_PLANE_URL: http://api:8080
+      AGENT_MOCK: 'true'
+      HYSTERIA_AUTH_PORT: '18092'
+    depends_on:
+      api:
+        condition: service_started
+
+  agent-yc:
+    <<: *app
+    command: npx tsx watch apps/node-agent/src/index.ts
+    environment:
+      NODE_CODE: yc-bridge-01
+      CONTROL_PLANE_URL: http://api:8080
+      AGENT_MOCK: 'true'
+      HYSTERIA_AUTH_PORT: '18093'
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  pgdata:

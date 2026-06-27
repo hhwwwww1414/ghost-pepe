@@ -1,0 +1,35 @@
+# FI — control-plane + exit node (docs 06 §3.1)
+node_code: fi-control-01
+country_code: FI
+role: control_exit
+is_control_plane: true
+is_exit_node: true
+is_whitelist_bridge: false
+ssh:
+  host: "${FI_HOST}"
+  port: 22
+  user: "${FI_USER}"
+  key_path: "${FI_SSH_KEY_PATH}"
+public_ipv4: "${FI_PUBLIC_IPV4}"
+domains:
+  vless: "${FI_VLESS_DOMAIN}"
+  hysteria: "${FI_HYSTERIA_DOMAIN}"
+services:
+  - api-backend
+  - postgres
+  - redis
+  - subscription-page
+  - telegram-bot
+  - admin-web
+  - reverse-proxy        # HAProxy (SNI) + Caddy (HTTPS)
+  - node-agent
+  - xray                 # VLESS+Reality
+  - hysteria             # Hysteria2
+  - stats-worker
+  - billing-worker
+  - geo-rules-worker
+profiles:
+  - fi_vless_regular
+  - fi_hysteria_regular
+  - fi_vless_whitelist     # ingress = yc-bridge-01
+  - fi_hysteria_whitelist  # ingress = yc-bridge-01

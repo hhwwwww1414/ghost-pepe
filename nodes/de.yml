@@ -1,0 +1,26 @@
+# DE — exit node (docs 06 §3.2)
+node_code: de-exit-01
+country_code: DE
+role: exit
+is_control_plane: false
+is_exit_node: true
+is_whitelist_bridge: false
+ssh:
+  host: "${DE_HOST}"
+  port: 22
+  user: "${DE_USER}"
+  key_path: "${DE_SSH_KEY_PATH}"
+public_ipv4: "${DE_PUBLIC_IPV4}"
+domains:
+  vless: "${DE_VLESS_DOMAIN}"
+  hysteria: "${DE_HYSTERIA_DOMAIN}"
+services:
+  - node-agent
+  - xray                 # VLESS+Reality
+  - hysteria             # Hysteria2
+  - metrics-exporter
+profiles:
+  - de_vless_regular
+  - de_hysteria_regular
+  - de_vless_whitelist     # ingress = yc-bridge-01
+  - de_hysteria_whitelist  # ingress = yc-bridge-01

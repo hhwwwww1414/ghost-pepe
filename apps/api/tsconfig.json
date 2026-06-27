@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "noEmit": true,
+    "moduleResolution": "Bundler",
+    "paths": {
+      "@ghostpepe/shared": ["../../packages/shared/src/index.ts"],
+      "@ghostpepe/config": ["../../packages/config/src/index.ts"],
+      "@ghostpepe/db": ["../../packages/db/src/index.ts"],
+      "@ghostpepe/vpn-config": ["../../packages/vpn-config/src/index.ts"],
+      "@ghostpepe/routing-rules": ["../../packages/routing-rules/src/index.ts"],
+      "@ghostpepe/billing": ["../../packages/billing/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

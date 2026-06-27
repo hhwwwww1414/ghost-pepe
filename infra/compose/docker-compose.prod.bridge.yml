@@ -1,0 +1,20 @@
+# Yandex Cloud whitelist bridge (docs 06 §3.3). Minimal: node-agent only.
+# NO postgres, NO redis, NO panel, NO bot. Xray bridge + Hysteria bridge run on
+# the host via systemd; node-agent renders their configs and reports stats.
+name: ghostpepe-yc
+
+services:
+  node-agent:
+    image: ghostpepe-app:latest
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    restart: unless-stopped
+    command: npx tsx apps/node-agent/src/index.ts
+    network_mode: host
+    env_file:
+      - ../../.env.production
+    environment:
+      NODE_CODE: yc-bridge-01
+      CONTROL_PLANE_URL: ${API_BASE_URL}
+      AGENT_MOCK: 'false'

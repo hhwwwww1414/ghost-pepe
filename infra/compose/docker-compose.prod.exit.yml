@@ -1,0 +1,19 @@
+# DE exit node (docs 06 §3.2). Xray + Hysteria run on the host via systemd;
+# only the node-agent runs here, talking to the FI control-plane.
+name: ghostpepe-de
+
+services:
+  node-agent:
+    image: ghostpepe-app:latest
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    restart: unless-stopped
+    command: npx tsx apps/node-agent/src/index.ts
+    network_mode: host
+    env_file:
+      - ../../.env.production
+    environment:
+      NODE_CODE: de-exit-01
+      CONTROL_PLANE_URL: ${API_BASE_URL}
+      AGENT_MOCK: 'false'

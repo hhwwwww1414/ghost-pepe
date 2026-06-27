@@ -1,0 +1,454 @@
+// Ghost Pepe VPN — PostgreSQL schema (Prisma).
+// Source of truth: docs/architecture 04 §3, 05 §4, 06 §9.
+// PostgreSQL is THE source of truth; Xray/Hysteria are execution layers only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────── Users / Telegram ───────────────────────────
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  telegramId    BigInt   @unique @map("telegram_id")
+  username      String?
+  firstName     String?  @map("first_name")
+  lastName      String?  @map("last_name")
+  languageCode  String?  @map("language_code")
+  status        String   @default("active") // active, blocked
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  subscriptions Subscription[]
+  devices       Device[]
+  credentials   DeviceCredential[]
+  payments      Payment[]
+  telegramAccount TelegramAccount?
+  trafficEvents TrafficUsageEvent[]
+
+  @@map("users")
+}
+
+/// Explicit Telegram identity record (docs prompt: telegram_accounts).
+model TelegramAccount {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  telegramId   BigInt   @unique @map("telegram_id")
+  username     String?
+  isBotBlocked Boolean  @default(false) @map("is_bot_blocked")
+  languageCode String?  @map("language_code")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("telegram_accounts")
+}
+
+// ─────────────────────────────── Plans / Subscriptions ──────────────────────
+
+/// Tariffs. (table name `plans`; aka subscription_plans)
+model Plan {
+  id                String   @id @default(uuid()) @db.Uuid
+  code              String   @unique
+  title             String
+  starsPrice        Int      @map("stars_price")
+  durationDays      Int      @map("duration_days")
+  trafficLimitBytes BigInt   @map("traffic_limit_bytes") // 0 = unlimited
+  deviceLimit       Int      @default(5) @map("device_limit")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  subscriptions Subscription[]
+  payments      Payment[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                   String   @id @default(uuid()) @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  planId               String   @map("plan_id") @db.Uuid
+  status               String   @default("payment_pending")
+  startsAt             DateTime @default(now()) @map("starts_at") @db.Timestamptz
+  expiresAt            DateTime @map("expires_at") @db.Timestamptz
+  trafficLimitBytes    BigInt   @default(0) @map("traffic_limit_bytes")
+  trafficUsedBytes     BigInt   @default(0) @map("traffic_used_bytes")
+  deviceLimit          Int      @default(5) @map("device_limit")
+  // HMAC hash of the public page token; raw token never stored. (docs 03 §3, 17)
+  publicPageTokenHash  String   @unique @map("public_page_token_hash")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan        Plan     @relation(fields: [planId], references: [id])
+  devices     Device[]
+  credentials DeviceCredential[]
+  payments    Payment[]
+  trafficEvents TrafficUsageEvent[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+// ─────────────────────────────── Devices ───────────────────────────────────
+
+model Device {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  subscriptionId    String    @map("subscription_id") @db.Uuid
+  publicDeviceId    String    @unique @map("public_device_id")
+  displayName       String    @map("display_name")
+  platform          String // ios, android, windows, macos, linux, android_tv, unknown
+  status            String    @default("active") // active, disabled, revoked
+  installIdHash     String?   @map("install_id_hash")
+  happInstallIdHash String?   @map("happ_install_id_hash")
+  hwidHash          String?   @map("hwid_hash")
+  userAgentHash     String?   @map("user_agent_hash")
+  firstIpHash       String?   @map("first_ip_hash")
+  lastIpHash        String?   @map("last_ip_hash")
+  firstSeenAt       DateTime  @default(now()) @map("first_seen_at") @db.Timestamptz
+  lastSeenAt        DateTime? @map("last_seen_at") @db.Timestamptz
+  disabledAt        DateTime? @map("disabled_at") @db.Timestamptz
+  disabledBy        String?   @map("disabled_by") // user, admin, system
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription   Subscription       @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  credentials    DeviceCredential[]
+  sessions       DeviceSession[]
+  trafficEvents  TrafficUsageEvent[]
+
+  // Anti-duplication: backend also dedupes by hashes before insert (docs 04 §10).
+  @@index([userId, installIdHash])
+  @@index([userId, happInstallIdHash])
+  @@index([userId, hwidHash])
+  @@index([subscriptionId])
+  @@map("devices")
+}
+
+/// Per-protocol/profile credentials. One device gets many. (docs 04 §3.5)
+model DeviceCredential {
+  id                        String   @id @default(uuid()) @db.Uuid
+  userId                    String   @map("user_id") @db.Uuid
+  subscriptionId            String   @map("subscription_id") @db.Uuid
+  deviceId                  String   @map("device_id") @db.Uuid
+  profileCode               String   @map("profile_code")
+  protocol                  String // vless, hysteria
+  mode                      String // regular, whitelist
+  nodeId                    String   @map("node_id") @db.Uuid
+  exitNodeId                String?  @map("exit_node_id") @db.Uuid
+  credentialPublicId        String   @unique @map("credential_public_id")
+  // xray email / hysteria client id = stable identifier for stats
+  xrayEmail                 String?  @map("xray_email")
+  vlessUuidEncrypted        String?  @map("vless_uuid_encrypted")
+  hysteriaAuthTokenEncrypted String? @map("hysteria_auth_token_encrypted")
+  // HMAC of the hysteria auth token, for fast auth lookup without decrypting.
+  hysteriaAuthTokenHash     String?  @unique @map("hysteria_auth_token_hash")
+  status                    String   @default("active") // active, disabled, revoked
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  device       Device        @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  node         Node          @relation("CredentialNode", fields: [nodeId], references: [id])
+  counter      TrafficCounter?
+  statsOffset  StatsOffset?
+  trafficEvents TrafficUsageEvent[]
+
+  // Prevents duplicate credentials on repeat import (docs 04 §3.5/§10).
+  @@unique([deviceId, profileCode])
+  @@index([deviceId])
+  @@index([status])
+  @@map("device_credentials")
+}
+
+/// Online/usage session tracking (prompt: device_sessions).
+model DeviceSession {
+  id          String    @id @default(uuid()) @db.Uuid
+  deviceId    String    @map("device_id") @db.Uuid
+  protocol    String
+  nodeId      String    @map("node_id") @db.Uuid
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz
+  isOnline    Boolean   @default(true) @map("is_online")
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@map("device_sessions")
+}
+
+// ─────────────────────────────── Nodes ─────────────────────────────────────
+
+model Node {
+  id                String   @id @default(uuid()) @db.Uuid
+  code              String   @unique // fi-control-01, de-exit-01, yc-bridge-01
+  title             String
+  countryCode       String   @map("country_code")
+  role              String // control, exit, whitelist_ingress, control_exit, mixed
+  publicIpv4        String?  @map("public_ipv4")
+  publicIpv6        String?  @map("public_ipv6")
+  sshHost           String?  @map("ssh_host")
+  sshPort           Int      @default(22) @map("ssh_port")
+  sshUser           String?  @map("ssh_user")
+  vlessDomain       String?  @map("vless_domain")
+  hysteriaDomain    String?  @map("hysteria_domain")
+  vlessPort         Int?     @map("vless_port")
+  hysteriaPort      Int?     @map("hysteria_port")
+  isControlPlane    Boolean  @default(false) @map("is_control_plane")
+  isExitNode        Boolean  @default(false) @map("is_exit_node")
+  isWhitelistBridge Boolean  @default(false) @map("is_whitelist_bridge")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  profiles      NodeProfile[]
+  credentials   DeviceCredential[] @relation("CredentialNode")
+  metrics       ServerMetric[]
+  healthEvents  NodeHealthEvent[]
+  deployments   Deployment[]
+  trafficEvents TrafficUsageEvent[]
+
+  @@map("nodes")
+}
+
+model NodeProfile {
+  id                    String   @id @default(uuid()) @db.Uuid
+  nodeId                String   @map("node_id") @db.Uuid
+  profileCode           String   @unique @map("profile_code")
+  label                 String   @default("")
+  protocol              String // vless, hysteria
+  mode                  String // regular, whitelist
+  countryCode           String   @map("country_code")
+  endpointHost          String   @map("endpoint_host")
+  endpointPort          Int      @map("endpoint_port")
+  transport             String   @default("tcp")
+  ruDirect              Boolean  @map("ru_direct")
+  whitelistBridgeNodeId String?  @map("whitelist_bridge_node_id") @db.Uuid
+  exitNodeId            String?  @map("exit_node_id") @db.Uuid
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([nodeId])
+  @@map("node_profiles")
+}
+
+// ─────────────────────────────── Traffic ───────────────────────────────────
+
+model TrafficUsageEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  subscriptionId  String   @map("subscription_id") @db.Uuid
+  deviceId        String   @map("device_id") @db.Uuid
+  credentialId    String   @map("credential_id") @db.Uuid
+  nodeId          String   @map("node_id") @db.Uuid
+  protocol        String
+  mode            String
+  uplinkBytes     BigInt   @default(0) @map("uplink_bytes")
+  downlinkBytes   BigInt   @default(0) @map("downlink_bytes")
+  source          String // xray_stats, hysteria_stats
+  statWindowStart DateTime @map("stat_window_start") @db.Timestamptz
+  statWindowEnd   DateTime @map("stat_window_end") @db.Timestamptz
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription     @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  device       Device           @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  credential   DeviceCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  node         Node             @relation(fields: [nodeId], references: [id])
+
+  @@index([subscriptionId, createdAt])
+  @@index([nodeId, createdAt])
+  @@index([protocol, mode])
+  @@map("traffic_usage_events")
+}
+
+model TrafficCounter {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  subscriptionId String    @map("subscription_id") @db.Uuid
+  deviceId       String    @map("device_id") @db.Uuid
+  credentialId   String    @unique @map("credential_id") @db.Uuid
+  nodeId         String    @map("node_id") @db.Uuid
+  protocol       String
+  mode           String
+  uplinkBytes    BigInt    @default(0) @map("uplink_bytes")
+  downlinkBytes  BigInt    @default(0) @map("downlink_bytes")
+  totalBytes     BigInt    @default(0) @map("total_bytes")
+  lastSyncedAt   DateTime? @map("last_synced_at") @db.Timestamptz
+
+  credential DeviceCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@map("traffic_counters")
+}
+
+/// Last-seen monotonic counters for delta computation (docs 04 §5.3).
+model StatsOffset {
+  id                  String   @id @default(uuid()) @db.Uuid
+  credentialId        String   @map("credential_id") @db.Uuid
+  source              String // xray_stats, hysteria_stats
+  lastUplinkCounter   BigInt   @default(0) @map("last_uplink_counter")
+  lastDownlinkCounter BigInt   @default(0) @map("last_downlink_counter")
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  credential DeviceCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@unique([credentialId, source])
+  @@map("stats_offsets")
+}
+
+// ─────────────────────────────── Payments ──────────────────────────────────
+
+model Payment {
+  id                      String    @id @default(uuid()) @db.Uuid
+  userId                  String    @map("user_id") @db.Uuid
+  subscriptionId          String?   @map("subscription_id") @db.Uuid
+  planId                  String    @map("plan_id") @db.Uuid
+  status                  String    @default("pending")
+  currency                String    @default("XTR")
+  starsAmount             Int       @map("stars_amount")
+  invoicePayload          String    @unique @map("invoice_payload")
+  telegramPaymentChargeId String?   @unique @map("telegram_payment_charge_id")
+  providerPaymentChargeId String?   @map("provider_payment_charge_id")
+  rawUpdate               Json?     @map("raw_update")
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  paidAt                  DateTime? @map("paid_at") @db.Timestamptz
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan         Plan           @relation(fields: [planId], references: [id])
+  subscription Subscription?  @relation(fields: [subscriptionId], references: [id])
+  events       PaymentEvent[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  paymentId  String?  @map("payment_id") @db.Uuid
+  telegramId BigInt?  @map("telegram_id")
+  eventType  String   @map("event_type") // invoice_created, pre_checkout, successful_payment, refund, error
+  payload    Json
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@map("payment_events")
+}
+
+// ─────────────────────────────── Ops / metrics / audit ─────────────────────
+
+/// Heartbeat snapshots from node-agent (prompt: server_metrics; plan: node_health_events).
+model ServerMetric {
+  id                    String   @id @default(uuid()) @db.Uuid
+  nodeId                String   @map("node_id") @db.Uuid
+  xrayAlive             Boolean  @default(false) @map("xray_alive")
+  hysteriaAlive         Boolean  @default(false) @map("hysteria_alive")
+  loadAvg               Float    @default(0) @map("load_avg")
+  cpuPercent            Float    @default(0) @map("cpu_percent")
+  ramPercent            Float    @default(0) @map("ram_percent")
+  diskPercent           Float    @default(0) @map("disk_percent")
+  rxBytes5m             BigInt   @default(0) @map("rx_bytes_5m")
+  txBytes5m             BigInt   @default(0) @map("tx_bytes_5m")
+  activeVlessDevices    Int      @default(0) @map("active_vless_devices")
+  activeHysteriaDevices Int      @default(0) @map("active_hysteria_devices")
+  checkedAt             DateTime @default(now()) @map("checked_at") @db.Timestamptz
+
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([nodeId, checkedAt])
+  @@map("server_metrics")
+}
+
+model NodeHealthEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  nodeId    String   @map("node_id") @db.Uuid
+  level     String   @default("info") // info, warning, error
+  kind      String // xray_down, hysteria_down, agent_silent, disk_full, etc.
+  message   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([nodeId, createdAt])
+  @@map("node_health_events")
+}
+
+model RoutingRulesVersion {
+  id             String   @id @default(uuid()) @db.Uuid
+  version        Int
+  geoipVersion   String   @map("geoip_version")
+  geositeVersion String   @map("geosite_version")
+  checksum       String
+  sourceUrl      String   @map("source_url")
+  isActive       Boolean  @default(false) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("routing_rules_versions")
+}
+
+model Deployment {
+  id        String   @id @default(uuid()) @db.Uuid
+  nodeId    String?  @map("node_id") @db.Uuid
+  target    String // fi, de, yandex, all
+  version   String
+  status    String   @default("pending") // pending, running, success, failed
+  log       String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  node Node? @relation(fields: [nodeId], references: [id])
+
+  @@map("deployments")
+}
+
+// ─────────────────────────────── Admin / audit ─────────────────────────────
+
+model AdminUser {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String   @default("admin") // owner, admin, support, readonly
+  isActive     Boolean  @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("admin_users")
+}
+
+/// Every admin/user/system/worker action lands here. (docs 04 §12)
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorType  String   @map("actor_type") // user, admin, system, worker
+  actorId    String?  @map("actor_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  beforeJson Json?    @map("before_json")
+  afterJson  Json?    @map("after_json")
+  ipHash     String?  @map("ip_hash")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([entityType, entityId])
+  @@index([actorType, actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

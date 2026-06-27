@@ -1,0 +1,27 @@
+# Yandex Cloud — whitelist bridge / ingress (docs 06 §3.3)
+# NO PostgreSQL, NO Redis, NO panel, NO bot. Minimal ingress only.
+node_code: yc-bridge-01
+country_code: RU
+role: whitelist_bridge
+is_control_plane: false
+is_exit_node: false
+is_whitelist_bridge: true
+ssh:
+  host: "${YC_HOST}"
+  port: 22
+  user: "${YC_USER}"
+  key_path: "${YC_SSH_KEY_PATH}"
+public_ipv4: "${YC_PUBLIC_IPV4}"   # whitelisted IP
+domains:
+  vless: "${WL_VLESS_DOMAIN}"
+  hysteria: "${WL_HYSTERIA_DOMAIN}"
+services:
+  - node-agent
+  - xray-bridge          # VLESS whitelist bridge -> FI/DE exit
+  - hysteria-bridge      # Hysteria whitelist bridge -> FI/DE exit
+  - haproxy              # optional SNI router
+bridge_inbounds:
+  - wl-vless-to-fi
+  - wl-vless-to-de
+  - wl-hysteria-to-fi
+  - wl-hysteria-to-de
