@@ -25,6 +25,7 @@
     "db:seed": "npm -w @ghostpepe/db run seed"
   },
   "devDependencies": {
+    "@types/node": "^26.0.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

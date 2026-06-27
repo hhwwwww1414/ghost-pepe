@@ -161,8 +161,9 @@ model DeviceCredential {
   subscription Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   device       Device        @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   node         Node          @relation("CredentialNode", fields: [nodeId], references: [id])
+  exitNode     Node?         @relation("CredentialExitNode", fields: [exitNodeId], references: [id])
   counter      TrafficCounter?
-  statsOffset  StatsOffset?
+  statsOffsets StatsOffset[]
   trafficEvents TrafficUsageEvent[]
 
   // Prevents duplicate credentials on repeat import (docs 04 §3.5/§10).
@@ -214,6 +215,7 @@ model Node {
 
   profiles      NodeProfile[]
   credentials   DeviceCredential[] @relation("CredentialNode")
+  exitCredentials DeviceCredential[] @relation("CredentialExitNode")
   metrics       ServerMetric[]
   healthEvents  NodeHealthEvent[]
   deployments   Deployment[]

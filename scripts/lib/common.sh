@@ -11,6 +11,7 @@ die()  { printf '\033[31m[ghostpepe] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 # Load KEY=VALUE pairs from a file into the environment (ignores #comments / ## md headers).
 load_env_file() {
   local file="$1"
+  local overwrite="${2:-true}"
   [ -f "$file" ] || return 0
   log "loading $file"
   while IFS= read -r line; do
@@ -18,7 +19,13 @@ load_env_file() {
     line="$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
     [ -z "$line" ] && continue
     case "$line" in
-      *=*) export "${line%%=*}"="${line#*=}";;
+      *=*)
+        local key="${line%%=*}"
+        local value="${line#*=}"
+        if [ "$overwrite" = "true" ] || [ -z "${!key:-}" ]; then
+          export "$key"="$value"
+        fi
+        ;;
     esac
   done < "$file"
 }
@@ -28,7 +35,7 @@ load_secrets() {
   load_env_file "$REPO_ROOT/.env.production"
   load_env_file "$REPO_ROOT/.env.local"
   load_env_file "$REPO_ROOT/infra/secrets/secrets.local.md"
-  load_env_file "$REPO_ROOT/.env.example"   # defaults only (no override)
+  load_env_file "$REPO_ROOT/.env.example" false
 }
 
 require_var() {
