@@ -22,3 +22,19 @@ test('whitelist profiles connect through the Yandex bridge and exit elsewhere', 
     assert.match(profile.endpointDomainEnv, /^WL_/);
   }
 });
+
+test('subscription labels use compact country/protocol format and EU marker for whitelist', () => {
+  assert.deepEqual(
+    Object.fromEntries(PROFILE_DEFINITIONS.map((p) => [p.code, p.label])),
+    {
+      fi_vless_regular: '🇫🇮 FI | VLESS',
+      fi_hysteria_regular: '🇫🇮 FI | HY',
+      fi_vless_whitelist: '🇪🇺 LTE #2 | VLESS',
+      fi_hysteria_whitelist: '🇪🇺 LTE #1 | HY',
+      de_vless_regular: '🇩🇪 DE | VLESS',
+      de_hysteria_regular: '🇩🇪 DE | HY',
+      de_vless_whitelist: '🇪🇺 LTE #4 | VLESS',
+      de_hysteria_whitelist: '🇪🇺 LTE #3 | HY',
+    },
+  );
+});

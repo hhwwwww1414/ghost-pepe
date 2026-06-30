@@ -17,9 +17,26 @@ export interface HysteriaExitParams {
   masqueradeUrl?: string;
 }
 
+function hysteriaPerformanceOptions(): Record<string, unknown> {
+  return {
+    bandwidth: { up: '1 gbps', down: '1 gbps' },
+    ignoreClientBandwidth: true,
+    quic: {
+      initStreamReceiveWindow: 26843545,
+      maxStreamReceiveWindow: 26843545,
+      initConnReceiveWindow: 67108864,
+      maxConnReceiveWindow: 67108864,
+      maxIdleTimeout: '60s',
+      maxIncomingStreams: 2048,
+      disablePathMTUDiscovery: false,
+    },
+  };
+}
+
 export function renderHysteriaExitConfig(p: HysteriaExitParams): Record<string, unknown> {
   const cfg: Record<string, unknown> = {
     listen: `:${p.listenPort}`,
+    ...hysteriaPerformanceOptions(),
     tls: { cert: p.tlsCert, key: p.tlsKey },
     auth: { type: 'http', http: { url: p.authUrl, insecure: false } },
     trafficStats: { listen: p.trafficStatsListen, secret: p.trafficStatsSecret },
@@ -41,9 +58,8 @@ export interface HysteriaBridgeRoute {
   tlsCert: string;
   tlsKey: string;
   obfsPassword?: string;
-  /** the FI/DE Hysteria exit this bridge forwards to */
-  exitHost: string;
-  exitPort: number;
+  /** local SOCKS listener that forwards to the selected FI/DE exit */
+  socksAddr: string;
 }
 
 /**
@@ -58,15 +74,17 @@ export interface HysteriaBridgeRoute {
 export function renderHysteriaBridgeConfig(r: HysteriaBridgeRoute): Record<string, unknown> {
   const cfg: Record<string, unknown> = {
     listen: `:${r.listenPort}`,
+    ...hysteriaPerformanceOptions(),
     tls: { cert: r.tlsCert, key: r.tlsKey },
     auth: { type: 'http', http: { url: r.authUrl, insecure: false } },
     trafficStats: { listen: r.trafficStatsListen, secret: r.trafficStatsSecret },
-    // Forward everything to the FI/DE Hysteria2 exit endpoint.
+    // Hysteria server supports SOCKS outbounds, not Hysteria2 outbounds.
+    // Xray owns the local SOCKS listener and tunnels to the selected exit.
     outbounds: [
       {
         name: 'exit',
-        type: 'hysteria2',
-        hysteria2: { server: `${r.exitHost}:${r.exitPort}` },
+        type: 'socks5',
+        socks5: { addr: r.socksAddr },
       },
     ],
     acl: { inline: ['exit(all)'] },

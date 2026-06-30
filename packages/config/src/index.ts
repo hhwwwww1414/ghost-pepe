@@ -39,6 +39,9 @@ const envSchema = z.object({
   ADMIN_BASE_URL: z.string().default('http://localhost:8083'),
 
   ROOT_DOMAIN: z.string().default('example.com'),
+  API_DOMAIN: z.string().default('api.example.com'),
+  ADMIN_DOMAIN: z.string().default('admin.example.com'),
+  SUB_DOMAIN: z.string().default('sub.example.com'),
   FI_VLESS_DOMAIN: z.string().default('fi-vless.example.com'),
   FI_HYSTERIA_DOMAIN: z.string().default('fi-hy.example.com'),
   DE_VLESS_DOMAIN: z.string().default('de-vless.example.com'),
@@ -49,15 +52,15 @@ const envSchema = z.object({
   FI_REALITY_PRIVATE_KEY: z.string().default(''),
   FI_REALITY_PUBLIC_KEY: z.string().default(''),
   FI_REALITY_SHORT_ID: z.string().default(''),
-  FI_REALITY_SERVER_NAME: z.string().default('www.microsoft.com'),
+  FI_REALITY_SERVER_NAME: z.string().default('www.cloudflare.com'),
   DE_REALITY_PRIVATE_KEY: z.string().default(''),
   DE_REALITY_PUBLIC_KEY: z.string().default(''),
   DE_REALITY_SHORT_ID: z.string().default(''),
-  DE_REALITY_SERVER_NAME: z.string().default('www.microsoft.com'),
+  DE_REALITY_SERVER_NAME: z.string().default('www.cloudflare.com'),
   YC_REALITY_PRIVATE_KEY: z.string().default(''),
   YC_REALITY_PUBLIC_KEY: z.string().default(''),
   YC_REALITY_SHORT_ID: z.string().default(''),
-  YC_REALITY_SERVER_NAME: z.string().default('www.microsoft.com'),
+  YC_REALITY_SERVER_NAME: z.string().default('www.cloudflare.com'),
 
   FI_HYSTERIA_TRAFFIC_API_SECRET: z.string().default(''),
   DE_HYSTERIA_TRAFFIC_API_SECRET: z.string().default(''),
@@ -65,6 +68,14 @@ const envSchema = z.object({
   FI_HYSTERIA_OBFS_PASSWORD: z.string().default(''),
   DE_HYSTERIA_OBFS_PASSWORD: z.string().default(''),
   YC_HYSTERIA_OBFS_PASSWORD: z.string().default(''),
+  // SHA-256 fingerprint of each node's Hysteria TLS cert, used for client cert
+  // pinning (pinSHA256 / xray pinnedPeerCertSha256). Replaces the removed
+  // allowInsecure for self-signed certs. Plain hex (no colons) or colon format.
+  FI_HYSTERIA_CERT_SHA256: z.string().default(''),
+  DE_HYSTERIA_CERT_SHA256: z.string().default(''),
+  YC_HYSTERIA_CERT_SHA256: z.string().default(''),
+  FI_HYSTERIA_BRIDGE_VLESS_UUID: z.string().default(''),
+  DE_HYSTERIA_BRIDGE_VLESS_UUID: z.string().default(''),
 
   API_PORT: z.coerce.number().default(8080),
   HYSTERIA_AUTH_PORT: z.coerce.number().default(18081),
@@ -100,6 +111,23 @@ const envSchema = z.object({
   HAPP_SUBSCRIPTION_NAME: z.string().default('Ghost Pepe'),
   HAPP_SUPPORT_URL: z.string().default('https://t.me/ghostpepe_support'),
   HAPP_PROFILE_UPDATE_INTERVAL: z.coerce.number().default(6),
+  // Happ's hy2 URI support documents SNI but not certificate pin parameters.
+  // Use a publicly trusted cert name here even when endpointHost is an IP.
+  HAPP_HYSTERIA_SERVER_NAME: z.string().default('sub.example.com'),
+  // Production-safe mode for networks where direct foreign endpoints or
+  // Reality are unstable in Happ. Serves only whitelist Hysteria profiles.
+  HAPP_STABLE_ONLY: bool(false),
+  // Hysteria2 port hopping for regular FI/DE exits. Mobile carriers/TSPU
+  // throttle QUIC on a fixed UDP 443; hopping across a range defeats per-port
+  // throttling. Empty = disabled (single port). Format: "20000-50000" (matches
+  // the server-side iptables REDIRECT range). mportHopInt is the hop interval.
+  HYSTERIA_PORT_HOP_RANGE: z.string().default(''),
+  HYSTERIA_PORT_HOP_INTERVAL: z.coerce.number().default(30),
+  // Port hopping for the in-RU whitelist bridge. It needs separate ranges
+  // because FI and DE bridge instances listen on different UDP ports.
+  WL_HYSTERIA_FI_PORT_HOP_RANGE: z.string().default(''),
+  WL_HYSTERIA_DE_PORT_HOP_RANGE: z.string().default(''),
+  WL_HYSTERIA_PORT_HOP_INTERVAL: z.coerce.number().default(30),
 
   // Node-agent context
   NODE_CODE: z.string().default('fi-control-01'),

@@ -15,6 +15,61 @@ export interface RenderedSubscription {
   body: string;
 }
 
+export function isStableHappProfile(protocol: string, mode: string): boolean {
+  return mode === 'whitelist' && (protocol === 'vless' || protocol === 'hysteria');
+}
+
+const PROFILE_ORDER = [
+  'fi_hysteria_regular',
+  'fi_vless_regular',
+  'de_hysteria_regular',
+  'de_vless_regular',
+  'fi_hysteria_whitelist',
+  'fi_vless_whitelist',
+  'de_hysteria_whitelist',
+  'de_vless_whitelist',
+];
+
+export function compareSubscriptionProfiles(a: string, b: string): number {
+  const ai = PROFILE_ORDER.indexOf(a);
+  const bi = PROFILE_ORDER.indexOf(b);
+  if (ai !== -1 && bi !== -1) return ai - bi;
+  if (ai !== -1) return -1;
+  if (bi !== -1) return 1;
+  return a.localeCompare(b);
+}
+
+export function subscriptionNoticeLines(): string[] {
+  return [
+    '🇪🇺 LTE ОБХОДЫ НЕ ГАРАНТИРОВАНЫ - в конце списка стран👇',
+    '🎬 YT - YouTube без рекламы',
+    '✅ Torrent - на сервере разрешены торренты',
+    '💬 Поддержка @ghostpepe_support',
+    '👻 Ghost Pepe VPN',
+  ];
+}
+
+export function happHysteriaPinSha256(): undefined {
+  return undefined;
+}
+
+export function hysteriaPortHopForProfile(
+  profileCode: string,
+  mode: string,
+): { range?: string; interval?: number } {
+  const cfg = getConfig();
+  if (mode === 'regular' && cfg.HYSTERIA_PORT_HOP_RANGE.length > 0) {
+    return { range: cfg.HYSTERIA_PORT_HOP_RANGE, interval: cfg.HYSTERIA_PORT_HOP_INTERVAL };
+  }
+  if (profileCode === 'fi_hysteria_whitelist' && cfg.WL_HYSTERIA_FI_PORT_HOP_RANGE.length > 0) {
+    return { range: cfg.WL_HYSTERIA_FI_PORT_HOP_RANGE, interval: cfg.WL_HYSTERIA_PORT_HOP_INTERVAL };
+  }
+  if (profileCode === 'de_hysteria_whitelist' && cfg.WL_HYSTERIA_DE_PORT_HOP_RANGE.length > 0) {
+    return { range: cfg.WL_HYSTERIA_DE_PORT_HOP_RANGE, interval: cfg.WL_HYSTERIA_PORT_HOP_INTERVAL };
+  }
+  return {};
+}
+
 /**
  * Build the Happ subscription body for one device (docs 03 §10–12).
  * Returns null with a reason when access is denied — caller maps to 403.
@@ -49,11 +104,12 @@ export async function renderDeviceSubscription(
   const profileByCode = new Map(profiles.map((p) => [p.profileCode, p]));
 
   const lines: string[] = [];
-  // Stable order: FI regular, FI hysteria, FI wl..., DE...
-  const ordered = [...device.credentials].sort((a, b) => a.profileCode.localeCompare(b.profileCode));
+  // Keep regular profiles first and whitelist/LTE-style profiles at the end.
+  const ordered = [...device.credentials].sort((a, b) => compareSubscriptionProfiles(a.profileCode, b.profileCode));
   for (const cred of ordered) {
     const profile = profileByCode.get(cred.profileCode);
     if (!profile || !profile.isActive) continue;
+    if (cfg.HAPP_STABLE_ONLY && !isStableHappProfile(cred.protocol, cred.mode)) continue;
     const ingressNodeCode = cred.node.code;
 
     if (cred.protocol === 'vless' && cred.vlessUuidEncrypted) {
@@ -72,14 +128,17 @@ export async function renderDeviceSubscription(
       );
     } else if (cred.protocol === 'hysteria' && cred.hysteriaAuthTokenEncrypted) {
       const auth = decryptSecret(cred.hysteriaAuthTokenEncrypted, cfg.ENCRYPTION_MASTER_KEY);
+      const portHop = hysteriaPortHopForProfile(cred.profileCode, cred.mode);
       lines.push(
         buildHysteriaLink({
           auth,
           host: profile.endpointHost,
           port: profile.endpointPort,
-          serverName: profile.endpointHost,
+          serverName: cfg.HAPP_HYSTERIA_SERVER_NAME || cfg.SUB_DOMAIN,
           obfsPassword: hysteriaObfs(ingressNodeCode),
-          insecure: true,
+          pinSha256: happHysteriaPinSha256(),
+          portHopRange: portHop.range,
+          hopInterval: portHop.interval,
           label: profile.label,
         }),
       );
@@ -107,6 +166,8 @@ export async function renderDeviceSubscription(
     'profile-update-interval': String(cfg.HAPP_PROFILE_UPDATE_INTERVAL),
     'subscription-userinfo': userInfo,
     'support-url': cfg.HAPP_SUPPORT_URL,
+    'subscription-ping-onopen-enabled': '1',
+    'subscriptions-sort-type': 'none',
     routing: routingLink,
   };
 
@@ -115,6 +176,10 @@ export async function renderDeviceSubscription(
     `#subscription-userinfo: ${userInfo}`,
     `#support-url: ${cfg.HAPP_SUPPORT_URL}`,
     `#profile-update-interval: ${cfg.HAPP_PROFILE_UPDATE_INTERVAL}`,
+    '#subscription-ping-onopen-enabled: 1',
+    '#subscriptions-sort-type: none',
+    '',
+    ...subscriptionNoticeLines().map((line) => `# ${line}`),
   ].join('\n');
 
   return {

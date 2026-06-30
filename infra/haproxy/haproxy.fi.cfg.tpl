@@ -13,8 +13,11 @@ global
 defaults
     mode tcp
     timeout connect 5s
-    timeout client  50s
-    timeout server  50s
+    timeout client  1h
+    timeout server  1h
+    timeout tunnel  1h
+    timeout client-fin 30s
+    timeout server-fin 30s
     log global
 
 frontend tls_in
@@ -22,11 +25,13 @@ frontend tls_in
     tcp-request inspect-delay 5s
     tcp-request content accept if { req_ssl_hello_type 1 }
 
-    # Route VLESS Reality by its borrowed Reality SNI to Xray.
-    use_backend xray_vless if { req_ssl_sni -i ${FI_REALITY_SERVER_NAME} }
+    # Web domains must terminate in Caddy.
+    use_backend web_caddy if { req_ssl_sni -i ${SUB_DOMAIN} }
+    use_backend web_caddy if { req_ssl_sni -i ${ADMIN_DOMAIN} }
 
-    # Everything else (api/admin/sub) goes to the web reverse proxy.
-    default_backend web_caddy
+    # Everything else on TCP 443 is VPN traffic. This also makes IP/no-SNI
+    # client checks reach Reality instead of the web proxy.
+    default_backend xray_vless
 
 backend xray_vless
     server xray 127.0.0.1:1443

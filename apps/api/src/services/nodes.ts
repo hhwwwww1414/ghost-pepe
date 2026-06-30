@@ -9,6 +9,12 @@ export interface DesiredVlessUser {
   mode: string;
 }
 
+export interface DesiredHysteriaBridgeRoute {
+  name: string;
+  exitRegion: 'fi' | 'de';
+  listenPort: number;
+}
+
 export interface DesiredState {
   nodeCode: string;
   role: string;
@@ -17,6 +23,8 @@ export interface DesiredState {
   vlessUsers: DesiredVlessUser[];
   /** bridge inbound -> users (YC only) */
   bridgeInbounds: Record<string, DesiredVlessUser[]>;
+  /** Hysteria whitelist bridge listeners (YC only). */
+  hysteriaBridgeRoutes: DesiredHysteriaBridgeRoute[];
 }
 
 /**
@@ -32,8 +40,10 @@ export async function getDesiredState(nodeCode: string): Promise<DesiredState> {
 
   const creds = await prisma.deviceCredential.findMany({
     where: {
-      node: { code: nodeCode },
-      protocol: 'vless',
+      OR: [
+        { node: { code: nodeCode } },
+        { mode: 'whitelist', exitNode: { code: nodeCode } },
+      ],
       status: DEVICE_STATUS.ACTIVE,
       device: { status: DEVICE_STATUS.ACTIVE },
       subscription: { status: { notIn: NON_SERVING_SUBSCRIPTION_STATUSES as unknown as string[] } },
@@ -43,8 +53,15 @@ export async function getDesiredState(nodeCode: string): Promise<DesiredState> {
 
   const vlessUsers: DesiredVlessUser[] = [];
   const bridgeInbounds: Record<string, DesiredVlessUser[]> = {};
+  const hysteriaExitRegions = new Set<'fi' | 'de'>();
 
   for (const c of creds) {
+    if (c.protocol === 'hysteria') {
+      if (c.mode === 'whitelist' && node.isWhitelistBridge) {
+        hysteriaExitRegions.add(c.exitNode?.countryCode === 'DE' ? 'de' : 'fi');
+      }
+      continue;
+    }
     if (!c.vlessUuidEncrypted) continue;
     const user: DesiredVlessUser = {
       uuid: decryptSecret(c.vlessUuidEncrypted, cfg.ENCRYPTION_MASTER_KEY),
@@ -61,12 +78,21 @@ export async function getDesiredState(nodeCode: string): Promise<DesiredState> {
     }
   }
 
+  const hysteriaBridgeRoutes: DesiredHysteriaBridgeRoute[] = [];
+  if (hysteriaExitRegions.has('fi')) {
+    hysteriaBridgeRoutes.push({ name: 'wl-hysteria-to-fi', exitRegion: 'fi', listenPort: 443 });
+  }
+  if (hysteriaExitRegions.has('de')) {
+    hysteriaBridgeRoutes.push({ name: 'wl-hysteria-to-de', exitRegion: 'de', listenPort: 444 });
+  }
+
   return {
     nodeCode,
     role: node.role,
     generatedAt: new Date().toISOString(),
     vlessUsers,
     bridgeInbounds,
+    hysteriaBridgeRoutes,
   };
 }
 

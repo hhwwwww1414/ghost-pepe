@@ -25,9 +25,70 @@ export async function getOrIssuePageToken(subscriptionId: string): Promise<strin
   return raw;
 }
 
+function normalizeBaseUrl(raw: string, label: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    throw new Error(`invalid_${label}:${raw || '<empty>'}`);
+  }
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error(`invalid_${label}:${raw}`);
+  }
+  return url.toString().replace(/\/$/, '');
+}
+
+/** Sub-page origin (https://sub…/s/{token}). */
+export function subPageBaseUrl(): string {
+  const cfg = getConfig();
+  return normalizeBaseUrl(cfg.PUBLIC_BASE_URL || cfg.API_BASE_URL, 'sub_page_base_url');
+}
+
+/** API origin (https://api…/sub/{deviceToken}, /api/…). */
+export function apiBaseUrl(): string {
+  const cfg = getConfig();
+  return normalizeBaseUrl(cfg.API_BASE_URL, 'api_base_url');
+}
+
+/** @deprecated Use subPageBaseUrl() or apiBaseUrl() explicitly. */
+export function publicBaseUrl(): string {
+  return subPageBaseUrl();
+}
+
 export function buildImportPageUrl(rawPageToken: string): string {
-  const base = getConfig().PUBLIC_BASE_URL.replace(/\/$/, '');
-  return `${base}/s/${rawPageToken}`;
+  return `${subPageBaseUrl()}/s/${rawPageToken}`;
+}
+
+export function buildSubscriptionBodyUrl(publicDeviceId: string): string {
+  return `${apiBaseUrl()}/sub/${publicDeviceId}`;
+}
+
+type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
+
+function buildGenericHappAddUrl(subscriptionBodyUrl: string): string {
+  return `happ:add/${Buffer.from(subscriptionBodyUrl, 'utf8').toString('base64url')}`;
+}
+
+export async function buildHappImportUrl(
+  subscriptionBodyUrl: string,
+  fetchImpl: FetchLike = fetch,
+): Promise<string> {
+  try {
+    const res = await fetchImpl('https://crypto.happ.su/api-v2.php', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: subscriptionBodyUrl }),
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return buildGenericHappAddUrl(subscriptionBodyUrl);
+    const body = await res.json() as { encrypted_link?: unknown };
+    if (typeof body.encrypted_link === 'string' && body.encrypted_link.startsWith('happ://crypt')) {
+      return body.encrypted_link;
+    }
+  } catch {
+    // Copy-link fallback still works when Happ's crypto service is unavailable.
+  }
+  return buildGenericHappAddUrl(subscriptionBodyUrl);
 }
 
 /** Find a subscription by its public page token (hash lookup). */

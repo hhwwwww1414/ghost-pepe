@@ -4,6 +4,20 @@
 
 listen: :443
 
+bandwidth:
+  up: 1 gbps
+  down: 1 gbps
+ignoreClientBandwidth: true
+
+quic:
+  initStreamReceiveWindow: 26843545
+  maxStreamReceiveWindow: 26843545
+  initConnReceiveWindow: 67108864
+  maxConnReceiveWindow: 67108864
+  maxIdleTimeout: 60s
+  maxIncomingStreams: 2048
+  disablePathMTUDiscovery: false
+
 tls:
   cert: /etc/ghostpepe/certs/hysteria.crt
   key: /etc/ghostpepe/certs/hysteria.key

@@ -22,9 +22,12 @@ bash "$REPO_ROOT/scripts/generate-configs/generate-configs.sh"
 log "3/7 creating remote dirs"
 ssh "${SSH_OPTS[@]}" "$REMOTE" "mkdir -p $REMOTE_DIR /etc/ghostpepe/{xray,hysteria,certs}"
 
+apply_host_tuning "$REMOTE" "${SSH_OPTS[@]}"
+install_porthop_unit "$REMOTE" "${SSH_OPTS[@]}"
+
 log "4/7 uploading repo"
 rsync -az -e "ssh ${SSH_OPTS[*]}" \
-  --exclude node_modules --exclude .git --exclude 'secrets/' --exclude 'CONNECT.md' \
+  --exclude node_modules --exclude .git --exclude 'secrets/' --exclude 'open-vpn/' --exclude 'scratch/' --exclude 'CONNECT.md' \
   "$REPO_ROOT/" "$REMOTE:$REMOTE_DIR/"
 
 log "5/7 uploading .env.production and rendered configs"

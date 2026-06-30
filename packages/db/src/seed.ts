@@ -10,6 +10,8 @@ import {
   FI_EXIT_CODE,
   DE_EXIT_CODE,
   YC_BRIDGE_CODE,
+  REFERRAL_LINE_RATES_BPS,
+  SETTING_KEY,
   hashPassword,
 } from '@ghostpepe/shared';
 import { prisma } from './index.js';
@@ -30,6 +32,18 @@ async function main(): Promise<void> {
       create: { ...p, deviceLimit: 5, isActive: true },
     });
   }
+
+  // ── Runtime settings ─────────────────────────────────────────────────────
+  await prisma.setting.upsert({
+    where: { key: SETTING_KEY.REFERRAL_RATES_BPS },
+    update: {},
+    create: { key: SETTING_KEY.REFERRAL_RATES_BPS, value: [...REFERRAL_LINE_RATES_BPS] },
+  });
+  await prisma.setting.upsert({
+    where: { key: SETTING_KEY.REFERRAL_ENABLED },
+    update: {},
+    create: { key: SETTING_KEY.REFERRAL_ENABLED, value: true },
+  });
 
   // ── Nodes ────────────────────────────────────────────────────────────────
   const nodeDefs = [
@@ -72,12 +86,13 @@ async function main(): Promise<void> {
     const ingressNodeId = nodeByCode[def.ingressNodeCode]!;
     const exitNodeId = nodeByCode[def.exitNodeCode]!;
     const endpointHost = domainForEnv(def.endpointDomainEnv);
+    const endpointPort = def.code === 'de_hysteria_whitelist' ? 444 : 443;
     const countryCode = def.exitRegion === 'fi' ? 'FI' : 'DE';
     await prisma.nodeProfile.upsert({
       where: { profileCode: def.code },
       update: {
         label: def.label, protocol: def.protocol, mode: def.mode, countryCode,
-        endpointHost, endpointPort: 443, transport: def.protocol === 'hysteria' ? 'udp' : 'tcp',
+        endpointHost, endpointPort, transport: def.protocol === 'hysteria' ? 'udp' : 'tcp',
         ruDirect: def.ruDirect,
         nodeId: ingressNodeId,
         whitelistBridgeNodeId: def.mode === 'whitelist' ? nodeByCode[YC_BRIDGE_CODE]! : null,
@@ -87,7 +102,7 @@ async function main(): Promise<void> {
       create: {
         nodeId: ingressNodeId,
         profileCode: def.code, label: def.label, protocol: def.protocol, mode: def.mode, countryCode,
-        endpointHost, endpointPort: 443, transport: def.protocol === 'hysteria' ? 'udp' : 'tcp',
+        endpointHost, endpointPort, transport: def.protocol === 'hysteria' ? 'udp' : 'tcp',
         ruDirect: def.ruDirect,
         whitelistBridgeNodeId: def.mode === 'whitelist' ? nodeByCode[YC_BRIDGE_CODE]! : null,
         exitNodeId,

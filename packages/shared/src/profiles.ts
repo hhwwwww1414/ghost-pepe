@@ -43,7 +43,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinition[] = [
   // ── Finland ──────────────────────────────────────────────────────────────
   {
     code: 'fi_vless_regular',
-    label: 'Finland VLESS',
+    label: '🇫🇮 FI | VLESS',
     protocol: 'vless',
     mode: 'regular',
     exitRegion: 'fi',
@@ -54,7 +54,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinition[] = [
   },
   {
     code: 'fi_hysteria_regular',
-    label: 'Finland Hysteria',
+    label: '🇫🇮 FI | HY',
     protocol: 'hysteria',
     mode: 'regular',
     exitRegion: 'fi',
@@ -65,7 +65,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinition[] = [
   },
   {
     code: 'fi_vless_whitelist',
-    label: 'Finland Whitelist VLESS',
+    label: '🇪🇺 LTE #2 | VLESS',
     protocol: 'vless',
     mode: 'whitelist',
     exitRegion: 'fi',
@@ -76,7 +76,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinition[] = [
   },
   {
     code: 'fi_hysteria_whitelist',
-    label: 'Finland Whitelist Hysteria',
+    label: '🇪🇺 LTE #1 | HY',
     protocol: 'hysteria',
     mode: 'whitelist',
     exitRegion: 'fi',
@@ -88,7 +88,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinition[] = [
   // ── Germany ──────────────────────────────────────────────────────────────
   {
     code: 'de_vless_regular',
-    label: 'Germany VLESS',
+    label: '🇩🇪 DE | VLESS',
     protocol: 'vless',
     mode: 'regular',
     exitRegion: 'de',
@@ -99,7 +99,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinition[] = [
   },
   {
     code: 'de_hysteria_regular',
-    label: 'Germany Hysteria',
+    label: '🇩🇪 DE | HY',
     protocol: 'hysteria',
     mode: 'regular',
     exitRegion: 'de',
@@ -110,7 +110,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinition[] = [
   },
   {
     code: 'de_vless_whitelist',
-    label: 'Germany Whitelist VLESS',
+    label: '🇪🇺 LTE #4 | VLESS',
     protocol: 'vless',
     mode: 'whitelist',
     exitRegion: 'de',
@@ -121,7 +121,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinition[] = [
   },
   {
     code: 'de_hysteria_whitelist',
-    label: 'Germany Whitelist Hysteria',
+    label: '🇪🇺 LTE #3 | HY',
     protocol: 'hysteria',
     mode: 'whitelist',
     exitRegion: 'de',

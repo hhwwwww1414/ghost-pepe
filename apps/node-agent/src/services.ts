@@ -9,7 +9,7 @@ const exec = promisify(execFile);
  * On real nodes they call systemctl. Failures are caught and reported, never
  * crash the agent.
  */
-export async function restartService(name: 'xray' | 'hysteria-server'): Promise<{ ok: boolean; error?: string }> {
+export async function restartService(name: 'xray' | 'hysteria-server' | `hysteria-server@${string}`): Promise<{ ok: boolean; error?: string }> {
   if (getConfig().AGENT_MOCK) return { ok: true };
   try {
     await exec('systemctl', ['restart', name]);

@@ -9,8 +9,11 @@ global
 defaults
     mode tcp
     timeout connect 5s
-    timeout client  50s
-    timeout server  50s
+    timeout client  1h
+    timeout server  1h
+    timeout tunnel  1h
+    timeout client-fin 30s
+    timeout server-fin 30s
     log global
 
 frontend tls_in
@@ -21,6 +24,6 @@ frontend tls_in
     default_backend xray_bridge
 
 backend xray_bridge
-    # Xray bridge listens on 127.0.0.1:11400 (wl-vless-to-fi) and 11401 (wl-vless-to-de).
-    # The bridge decides the exit per inbound; HAProxy just hands off TLS.
+    # Xray bridge listens on 127.0.0.1:11400 and routes by credential profile.
+    # HAProxy just hands off TLS.
     server xray 127.0.0.1:11400

@@ -30,14 +30,20 @@ async function reconcile(): Promise<void> {
   try {
     const state = await fetchDesiredState(NODE_CODE);
     lastState = state;
-    const hash = JSON.stringify({ v: state.vlessUsers, b: state.bridgeInbounds });
+    const hash = JSON.stringify({ v: state.vlessUsers, b: state.bridgeInbounds, h: state.hysteriaBridgeRoutes });
     if (hash !== lastConfigHash) {
       const out = renderConfigs(state);
       lastConfigHash = hash;
       log(`config changed: ${state.vlessUsers.length} vless users; rendered ${out.xrayPath}`);
       if (!cfg.AGENT_MOCK) {
         await restartService('xray');
-        await restartService('hysteria-server');
+        if (state.role === 'whitelist_ingress' || state.role === 'mixed') {
+          for (const route of state.hysteriaBridgeRoutes) {
+            await restartService(`hysteria-server@${route.name}`);
+          }
+        } else {
+          await restartService('hysteria-server');
+        }
       }
     }
   } catch (err) {
@@ -47,7 +53,7 @@ async function reconcile(): Promise<void> {
 }
 
 async function heartbeatLoop(): Promise<void> {
-  const state = lastState ?? { nodeCode: NODE_CODE, role: '', generatedAt: '', vlessUsers: [], bridgeInbounds: {} };
+  const state = lastState ?? { nodeCode: NODE_CODE, role: '', generatedAt: '', vlessUsers: [], bridgeInbounds: {}, hysteriaBridgeRoutes: [] };
   const hb = await buildHeartbeat(state);
   await postHeartbeat(NODE_CODE, hb);
 }

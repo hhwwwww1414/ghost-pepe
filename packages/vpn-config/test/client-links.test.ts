@@ -17,16 +17,48 @@ test('builds VLESS Reality client links', () => {
   assert.match(link, /#Finland%20VLESS$/);
 });
 
-test('builds Hysteria2 links with salamander obfs', () => {
+test('builds Happ-compatible Hysteria2 links with salamander obfs and cert pin', () => {
   const link = buildHysteriaLink({
     auth: 'secret',
     host: 'wl-hy.example.com',
     port: 443,
     serverName: 'wl-hy.example.com',
     obfsPassword: 'obfs',
+    pinSha256: 'deadbeef',
     label: 'Finland Whitelist Hysteria',
   });
   assert.match(link, /^hy2:\/\/secret@wl-hy\.example\.com:443\?/);
   assert.match(link, /obfs=salamander/);
+  assert.match(link, /pinSHA256=deadbeef/);
+  assert.doesNotMatch(link, /insecure/);
   assert.match(link, /#Finland%20Whitelist%20Hysteria$/);
+});
+
+test('emits port-hopping range and interval when configured', () => {
+  const link = buildHysteriaLink({
+    auth: 'secret',
+    host: '38.244.193.28',
+    port: 443,
+    serverName: 'sub.example.com',
+    obfsPassword: 'obfs',
+    portHopRange: '20000-50000',
+    hopInterval: 30,
+    label: 'FI | HY',
+  });
+  // Range lives in the authority, not the fixed port.
+  assert.match(link, /^hy2:\/\/secret@38\.244\.193\.28:20000-50000\?/);
+  assert.match(link, /mportHopInt=30/);
+  assert.match(link, /sni=sub\.example\.com/);
+});
+
+test('falls back to the fixed port when no hop range is set', () => {
+  const link = buildHysteriaLink({
+    auth: 'secret',
+    host: '38.244.193.28',
+    port: 443,
+    serverName: 'sub.example.com',
+    label: 'FI | HY',
+  });
+  assert.match(link, /^hy2:\/\/secret@38\.244\.193\.28:443\?/);
+  assert.doesNotMatch(link, /mportHopInt/);
 });

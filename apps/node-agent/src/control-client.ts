@@ -14,6 +14,7 @@ export interface DesiredState {
   generatedAt: string;
   vlessUsers: Array<{ uuid: string; email: string; profileCode: string; mode: string }>;
   bridgeInbounds: Record<string, Array<{ uuid: string; email: string; profileCode: string; mode: string }>>;
+  hysteriaBridgeRoutes: Array<{ name: string; exitRegion: 'fi' | 'de'; listenPort: number }>;
 }
 
 export async function fetchDesiredState(nodeCode: string): Promise<DesiredState> {
